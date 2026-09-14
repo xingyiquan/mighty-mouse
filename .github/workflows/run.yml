@@ -12,6 +12,8 @@ on:
         required: false
         default: ''
 
+run-name: ${{ inputs.task }}
+
 concurrency:
   group: run-${{ inputs.task }}
   cancel-in-progress: false
