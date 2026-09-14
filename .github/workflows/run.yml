@@ -1,0 +1,53 @@
+name: run
+
+# Started on demand only, by the service that owns the schedule.
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'task id'
+        required: true
+      limit:
+        description: 'size hint'
+        required: false
+        default: ''
+
+concurrency:
+  group: run-${{ inputs.task }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('worker/requirements.txt') }}
+
+      - name: Cache browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-v1
+
+      - name: Prepare
+        run: |
+          pip install --quiet -r worker/requirements.txt
+          sudo apt-get install -y xvfb
+
+      - name: Run
+        env:
+          WORKER_API_BASE: ${{ secrets.WORKER_API_BASE }}
+          WORKER_TOKEN: ${{ secrets.WORKER_TOKEN }}
+          TASK: ${{ inputs.task }}
+          LIMIT: ${{ inputs.limit }}
+        run: python worker/run.py
