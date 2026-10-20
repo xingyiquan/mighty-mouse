@@ -14,8 +14,9 @@ on:
 
 run-name: ${{ inputs.task }}
 
+# Tasks sharing the paid connection run one at a time; others keep their own lane.
 concurrency:
-  group: run-${{ inputs.task }}
+  group: ${{ contains(fromJSON('["task-a","task-d","task-e","task-f","task-g","task-h","task-i","task-j","task-k","task-l","task-m","task-n","task-o","task-p","task-q"]'), inputs.task) && 'run-shared' || format('run-{0}', inputs.task) }}
   cancel-in-progress: false
 
 jobs:
