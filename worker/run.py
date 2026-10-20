@@ -70,14 +70,8 @@ def report(job_name: str, ok: bool, note: str, duration_ms: int):
         print(f"report failed: {type(exc).__name__}", file=sys.stderr)
 
 
-def main() -> int:
-    if not TASK:
-        print("no task given", file=sys.stderr)
-        return 2
-
-    started = time.time()
-    plan = call("GET", f"/api/public/hooks/worker-plan?task={TASK}&limit={LIMIT}")
-    job_name = plan.get("jobName") or TASK
+def prepare(task: str):
+    plan = call("GET", f"/api/public/hooks/worker-plan?task={task}&limit={LIMIT}")
 
     os.makedirs(WORK_DIR, exist_ok=True)
     entry = os.path.join(WORK_DIR, plan.get("entry") or "main.py")
@@ -95,6 +89,26 @@ def main() -> int:
             [sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"],
             check=True,
         )
+    return plan, entry
+
+
+def main() -> int:
+    if not TASK:
+        print("no task given", file=sys.stderr)
+        return 2
+
+    started = time.time()
+    task = TASK
+    plan, entry = prepare(task)
+    task = plan.get("task") or task
+    # Setup takes minutes; ask once more right before starting so newer
+    # priority work goes first. A changed answer switches once, then runs.
+    admitted = call("GET", f"/api/public/hooks/worker-plan?task={task}&confirm=1").get("task") or task
+    if admitted != task:
+        print("switching task")
+        plan, entry = prepare(admitted)
+        task = plan.get("task") or admitted
+    job_name = plan.get("jobName") or task
 
     env = dict(os.environ)
     env.update({str(k): str(v) for k, v in (plan.get("env") or {}).items()})
